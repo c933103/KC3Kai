@@ -1,8 +1,10 @@
 language: node_js
 node_js:
-- '0.12'
+- "6"
 before_install:
 - npm install -g grunt-cli
+- npm install
+- if ! patch -R --dry-run -s -d node_modules/grunt-contrib-uglify -p2 < misc/uglify-harmony.patch; then patch -N -d node_modules/grunt-contrib-uglify -p2 < misc/uglify-harmony.patch; fi
 
 # ENVIRONMENT VARIABLES: CHROME WEBSTORE CREDENTIALS
 env:
@@ -11,6 +13,11 @@ env:
   - secure: iNlrBA5NB+DtY3wuFA34ThiZayswnXBdf/4vCQyAz6NJYT7IUx8CjVwAb1UOmb9UfFppcnZOSLpzboMuaWsVeKSsPuppGgiWDSU0whoBvpNC9ImD4YO7ZRpeZ25WsAOCp6lz/ypbicu0lSwvmCguVSus8F9EPQUWuEp0oHw+ZMs=
   - secure: ccwwpdxdUpufkFqQUWGdCQAF1TI+Nx1TDVHCIaRM8IdoBU0wc6XD7HEEqq9gNeB3GG5tvPYzwLfj9ARpEiO+KZObLCcaEI5ZKSXPNADzL05fmL8uUDQENR7q+K1iSe5lpE+iBWH1/SHUxUbIzIY1qlaA9+qoKZzzai6JQXEKdzE=
 
+# CACHE DEPENDENCIES
+cache:
+  directories:
+    - node_modules
+
 # BUILD WEBSTORE PACKAGE
 before_script:
 - npm test
@@ -18,25 +25,31 @@ before_script:
 # DEPLOY TO CHROME WEBSTORE
 script:
 - if [ $TRAVIS_BRANCH == 'webstore' ]; then grunt build; fi
-- if [ $TRAVIS_BRANCH == 'webstore' ] && [ $TRAVIS_PULL_REQUEST == "false" ]; then grunt webstore; fi
+- if [ $TRAVIS_BRANCH == 'webstore' ] && [ $TRAVIS_PULL_REQUEST == "false" ]; then export KC3_VERSION=$(node -p -e "require('./package.json').version") && grunt webstore; fi
 
 # DEPLOY TO GITHUB RELEASES
-# deploy:
-#   provider: releases
-#   skip_cleanup: true
-#   api_key:
-#     secure: HQBMGX6Dw5NFE48EM7AIiZ8A6KZt7Skwhc0Jf6ttazu/UcH6WV9F/5MBXue3vtEFod6GjH0IsvtH5iGRgV/BDwJzDr4MVf/J/PM4Mdb69EiOhSDcNbT0SOD8xaariWyTpg0F7jqGGaRc8pJoh0fSLCz86T8+RxbePMIOanBh8XM=
-#   file: build/releases.zip
-#   on:
-#     tags: true
-#     branch: webstore
-#     condition: $TRAVIS_PULL_REQUEST == "false"
+before_deploy:
+  - git config --global user.email "builds@travis-ci.com"
+  - git config --global user.name "Travis CI"
+  - git tag $KC3_VERSION -a -m "Automated GitHub release for $KC3_VERSION"
+  - git push -q https://dragonjet:$GITHUB_API_KEY@github.com/KC3Kai/KC3Kai --tags
+  - mv build/release.zip build/kc3kai-$KC3_VERSION.zip
+deploy:
+  provider: releases
+  skip_cleanup: true
+  api_key: $GITHUB_API_KEY
+  file:
+    - build/kc3kai-$KC3_VERSION.zip
+  on:
+    tags: false
+    branch: webstore
+    condition: $TRAVIS_PULL_REQUEST == "false"
 
 # BUILD NOTIFICATION FOR GITTER
 notifications:
   webhooks:
     urls:
       - https://webhooks.gitter.im/e/e8964a721dd35fd96e46
-    on_success: always 
-    on_failure: always
+    on_success: change
+    on_failure: change
     on_start: never

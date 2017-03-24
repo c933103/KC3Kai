@@ -23,29 +23,35 @@
 			async: true,
 			url: "https://raw.githubusercontent.com/KC3Kai/KC3Kai/master/update?v="+(Date.now()),
 			success: function(data, textStatus, request){
-				if (!!data.pr) {
-					$(".nextVersion").attr("href", data.pr);
-				}
-				if( myVersion != data.version ){
-					// If unknown time
-					if (data.time === "") {
-						$(".nextVersion").html( data.version+" "+KC3Meta.term("MenuScheduledSoon"));
+				// Check for available extension updates
+				if (typeof localStorage.updateAvailable != "undefined" && localStorage.updateAvailable != myVersion) {
+					// Update available, as notified by chrome itself
+					$(".nextVersion").html( localStorage.updateAvailable+" "+KC3Meta.term("UpdateAvailableNow"));
 					
-					// If there is a fixed scheduled time
-					} else {
-						// If current installed version less than latest
-						var UpdateDiff = (new Date(data.time)).getTime() - Date.now();
+				} else {
+					// Check the GitHub JSON
+					if( myVersion != data.version ){
+						// If unknown time
+						if (data.time === "") {
+							$(".nextVersion").html( data.version+" "+KC3Meta.term("MenuScheduledSoon"));
 						
-						if(UpdateDiff > 0){
-							$(".nextVersion").html( data.version+" in <span class=\"timer\">"+String(UpdateDiff/1000).toHHMMSS()+"</span>");
-						}else{
-							$(".nextVersion").html( data.version+" "+KC3Meta.term("MenuScheduledNow"));
+						// If there is a fixed scheduled time
+						} else {
+							// If current installed version less than latest
+							var UpdateDiff = (new Date(data.time)).getTime() - Date.now();
+							
+							if(UpdateDiff > 0){
+								$(".nextVersion").html( data.version+" in <span class=\"timer\">"+String(UpdateDiff/1000).toHHMMSS()+"</span>");
+							}else{
+								$(".nextVersion").html( data.version+" "+KC3Meta.term("MenuScheduledNow"));
+							}
 						}
+					}else{
+						// Installed version is the same or greater than latest
+						$(".nextVersion").html( KC3Meta.term("MenuOnLatest") );
 					}
-				}else{
-					// Installed version is the same or greater than latest
-					$(".nextVersion").html( KC3Meta.term("MenuOnLatest") );
 				}
+				
 				// Next Maintenance time
 				if (data.maintenance_start) {
 					var nextMtDate = new Date(data.maintenance_start);
@@ -68,64 +74,19 @@
 			}
 		});
 		
-		// Play via API Link
-		/*$("#play_cc").on('click', function(){
-			localStorage.extract_api = false;
-			localStorage.dmmplay = false;
-			window.open("../game/api.html", "kc3kai_game");
-		});*/
-		
-		// Refresh API Link
-		// $("#get_api").on('click', function(){
-		$("#play_cc").on('click', function(){
-			chrome.cookies.set({
-				url: "http://www.dmm.com",
-				name: "ckcy",
-				value: "1",
-				domain: ".dmm.com",
-				expirationDate: Math.ceil((new Date("Sun, 09 Feb 2019 09:00:09 GMT")).getTime()/1000),
-				path: '/netgame/',
-			}, function(cookie){
-				localStorage.extract_api = true;
-				localStorage.dmmplay = false;
-				window.open("http://www.dmm.com/netgame/social/-/gadgets/=/app_id=854854/", "kc3kai_game");
-			});
-		});
-		
 		// Play DMM Website
 		$("#play_dmm").on('click', function(){
-			chrome.cookies.set({
-				url: "http://www.dmm.com",
-				name: "ckcy",
-				value: "1",
-				domain: ".dmm.com",
-				expirationDate: Math.ceil((new Date("Sun, 09 Feb 2019 09:00:09 GMT")).getTime()/1000),
-				path: '/netgame/',
-			}, function(cookie){
-				localStorage.extract_api = false;
-				localStorage.dmmplay = true;
-				window.open("../game/web.html", "kc3kai_game");
-			});
-		});
-		
-		// Play via DMM Frame
-		$("#play_dmmf").on('click', function(){
-			chrome.cookies.set({
-				url: "http://www.dmm.com",
-				name: "ckcy",
-				value: "1",
-				domain: ".dmm.com",
-				expirationDate: Math.ceil((new Date("Sun, 09 Feb 2019 09:00:09 GMT")).getTime()/1000),
-				path: '/netgame/',
-			}, function(cookie){
-				localStorage.extract_api = false;
-				localStorage.dmmplay = false;
-				window.open("../game/dmm.html", "kc3kai_game");
-			});
+			localStorage.extract_api = false;
+			localStorage.dmmplay = true;
+			window.open("../game/direct.html", "kc3kai_game");
 		});
 		
 		// Strategy Room
 		$("#strategy").on('click', function(){
+			// To unify Strategy Room open method (always 1 tab), maybe a setting for it
+			//(new RMsg("service", "strategyRoomPage", { tabPath: "profile" })).execute();
+			//window.close();
+			// To allow multi Strategy Room tabs
 			window.open("../strategy/strategy.html", "kc3kai_strategy");
 		});
 		
@@ -137,11 +98,6 @@
 		// About
 		$("#about").on('click', function(){
 			window.open("../about/about.html", "kc3kai_about");
-		});
-		
-		// About
-		$("#facebook").on('click', function(){
-			window.open("https://www.facebook.com/kc3kai", "_blank");
 		});
 		
 		// Calculate reset countdowns

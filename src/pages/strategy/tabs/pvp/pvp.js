@@ -13,22 +13,26 @@
 		stegcover64: "",
 		
 		toggleMode: 1,
+		itemsPerPage: 10,
 		
 		init :function(){},
 		reload :function(){
-			this.toggleMode = 1;
 		},
 		execute :function(){
 			var self = this;
 			// Count PvP records for pagination
 			KC3Database.count_pvps(function(result){
-				self.pages = Math.ceil( result / 10 );
+				self.items = result;
+				self.pages = Math.ceil( result / self.itemsPerPage );
 				if(self.pages > 0){
 					self.showPagination();
 					self.showPage(1);
 				} else {
 					$(".tab_pvp .pagination").hide();
 				}
+				$(".tab_pvp .page_list")
+					.append('<div class="pvp_count">Total {0}</div>'
+						.format(self.items, self.pages, self.itemsPerPage));
 			});
 			
 			// Download replay button
@@ -81,18 +85,25 @@
 		---------------------------------*/
 		showPage :function(pageNum){
 			var self = this;
+			this.toggleMode = 1;
 			$("#pvp_list").empty();
+			$(".tab_pvp .pvp_toggle").removeClass("active");
+			$(".tab_pvp .pvp_toggle_ships").addClass("active");
+			$(".tab_pvp .pvp_player").width(290);
+			$(".tab_pvp .pvp_opponent").width(290);
+			$(".tab_pvp .pvp_battle").width(0);
 			KC3Database.get_pvps(pageNum, function(results){
 				$.each(results, function(index, pvpBattle){
 					self.cloneBattleBox(pvpBattle);
 				});
+				$("#pvp_list").createChildrenTooltips();
 			});
 		},
 		
 		/* CLONE ONE BATTLE BOX RECORD
 		---------------------------------*/
 		cloneBattleBox :function(pvpBattle){
-			console.debug("PvP battle record:", pvpBattle);
+			//console.debug("PvP battle record:", pvpBattle);
 			var self = this;
 			
 			self.box_record = $(".tab_pvp .factory .pvp_record").clone();
@@ -100,12 +111,15 @@
 			// Basic battle info
 			$(".pvp_id", self.box_record).text(pvpBattle.id);
 			if (pvpBattle.time) {
-				$(".pvp_date", self.box_record).text(new Date(pvpBattle.time*1000).format("mmm d"));
+				let pvpTime = new Date(pvpBattle.time * 1000);
+				$(".pvp_date", self.box_record).text(pvpTime.format("mmm d"))
+					.attr("title", pvpTime.format("yyyy-mm-dd HH:MM:ss"));
 			} else {
-				$(".pvp_date", self.box_record).text("unknown");
+				$(".pvp_date", self.box_record).text("Unknown");
 			}
-			$(".pvp_result img", self.box_record).attr("src", "../../assets/img/client/ratings/"+pvpBattle.rating+".png");
-			$(".pvp_result img", self.box_record).attr("title", "Base EXP "+pvpBattle.baseEXP );
+			$(".pvp_result img", self.box_record)
+				.attr("src", "../../assets/img/client/ratings/"+pvpBattle.rating+".png")
+				.attr("title", "Base EXP " + pvpBattle.baseEXP );
 			$(".pvp_dl", self.box_record).data("id", pvpBattle.id);
 			
 			// Player fleet
@@ -140,18 +154,28 @@
 		---------------------------------*/
 		cloneShipBox :function(data, targetBox){
 			var self = this;
+			var shipClickFunc = function(e){
+				KC3StrategyTabs.gotoTab("mstship", $(this).attr("alt"));
+			};
+			var gearClickFunc = function(e){
+				KC3StrategyTabs.gotoTab("mstgear", $(this).attr("alt"));
+			};
 			this.box_ship = $(".tab_pvp .factory .pvp_details_ship").clone();
 			
-			$(".pvp_ship_icon img", this.box_ship).attr("src", KC3Meta.shipIcon(data.mst_id));
+			let shipName = KC3Meta.shipName(KC3Master.ship(data.mst_id).api_name);
+			$(".pvp_ship_icon img", this.box_ship).attr("src", KC3Meta.shipIcon(data.mst_id))
+				.attr("alt", data.mst_id).click(shipClickFunc);
 			$(".pvp_ship_icon", this.box_ship).addClass("simg-"+data.mst_id);
-			$(".pvp_ship_name", this.box_ship).text(KC3Meta.shipName(KC3Master.ship(data.mst_id).api_name));
+			$(".pvp_ship_icon", this.box_ship).addClass("hover");
+			$(".pvp_ship_name", this.box_ship).text(shipName)
+				.attr("title", shipName);
 			
 			$(".pvp_ship_level span", this.box_ship).text(data.level);
 			if (!data.opponent) {
 				if (data.mvp) $(".pvp_ship_mvp_icon", this.box_ship).show();
 			} else {
 				$(".pvp_ship_hp span", this.box_ship).text(data.hp);
-				$(".pvp_ship_level", this.box_ship).attr("title", "HP "+data.hp);
+				$(".pvp_ship_level", this.box_ship).attr("title", "HP " + data.hp);
 				$(".pvp_ship_fp", this.box_ship).text(data.stats[0]);
 				$(".pvp_ship_tp", this.box_ship).text(data.stats[1]);
 				$(".pvp_ship_aa", this.box_ship).text(data.stats[2]);
@@ -164,8 +188,11 @@
 					var divTag = $("<div/>").addClass("pvp_ship_item");
 					
 					thisItem = KC3Master.slotitem(itemMstId);
-					var imgTag = $("<img/>").attr("src", "../../assets/img/items/"+thisItem.api_type[3]+".png");
-					divTag.append(imgTag).attr("title", KC3Meta.gearName(thisItem.api_name));
+					var imgTag = $("<img/>").attr("src", "../../assets/img/items/"+thisItem.api_type[3]+".png")
+						.attr("alt", itemMstId)
+						.attr("title", KC3Meta.gearName(thisItem.api_name))
+						.click(gearClickFunc);
+					divTag.append(imgTag).addClass("hover");
 					
 					$(".pvp_ship_items", self.box_ship).append(divTag);
 				}
@@ -194,7 +221,7 @@
 		/* FILL ONE BATTLE BOX (DAY/NIGHT)
 		---------------------------------*/
 		fillBattleBox :function(nodeInfo, targetBox){
-			console.debug("Simulated node info:", nodeInfo);
+			//console.debug("Simulated node info:", nodeInfo);
 			$(".node_engage", targetBox).text( nodeInfo.engagement[2] );
 			$(".node_engage", targetBox).addClass( nodeInfo.engagement[1] );
 			$(".node_contact", targetBox).text(nodeInfo.fcontact +" vs "+nodeInfo.econtact);
@@ -304,16 +331,25 @@
 						mapnum: 0,
 					};
 					
-					var newImg = steganography.encode(JSON.stringify(encodeData), withDataCover64);
-					
-					chrome.downloads.download({
-						url: newImg,
-						filename: ConfigManager.ss_directory+'/replay/'+PlayerManager.hq.name+"_pvp_"+pvpData.id+'.png',
-						conflictAction: "uniquify"
-					}, function(downloadId){
-						self.exportingReplay = false;
-						$("body").css("opacity", "1");
+					steg.encode(JSON.stringify(encodeData), withDataCover64, {
+						success: function(newImg){
+							chrome.downloads.download({
+								url: newImg,
+								filename: ConfigManager.ss_directory+'/replay/'+PlayerManager.hq.name+"_pvp_"+pvpData.id+'.png',
+								conflictAction: "uniquify"
+							}, function(downloadId){
+								self.exportingReplay = false;
+								$("body").css("opacity", "1");
+							});
+						},
+						error: function(e){
+							console.error("Failed to encode replay data by", e, e.stack);
+							self.exportingReplay = false;
+							$("body").css("opacity", "1");
+							return false;
+						}
 					});
+					
 				});
 				
 			};

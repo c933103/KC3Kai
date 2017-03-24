@@ -23,7 +23,8 @@
 						[ "scn", "简体中文" ],
 						[ "tcn", "繁體中文" ],
 						[ "th", "ภาษาไทย" ],
-						[ "vi", "Tiếng Việt" ]
+						[ "vi", "Tiếng Việt" ],
+						[ "ua", "Українська" ]
 					]
 				}
 			},
@@ -58,6 +59,56 @@
 			{
 				"id": "devOnlyPages",
 				"name": "SettingsDevOnlyPages",
+				"type": "check"
+			},
+			{
+				"id": "forceDMMLogin",
+				"name": "SettingsForceDMMLogin",
+				"hide" : 1,
+				"type": "check"
+			},
+			{
+				"id": "apiRecorder",
+				"name": "SettingsAPIRecorder",
+				"type": "check"
+			},
+			{
+				"id": "updateNotification",
+				"name": "SettingsUpdateNotification",
+				"type": "radio",
+				"options" : {
+					"choices" : [
+						[ 1, "SettingsUpdateNotifNone" ],
+						[ 2, "SettingsUpdateNotifPage" ],
+						[ 3, "SettingsUpdateNotifPop" ]
+					]
+				}
+			}
+		]
+	},
+	{
+		"section": "SettingsErrors",
+		"help" : "",
+		"contents" : [
+			{
+				"id": "showCatBombs",
+				"name": "SettingsShowCatBombs",
+				"type": "check"
+			},
+			{
+				"id": "showApiError",
+				"name": "SettingsShowAPIError",
+				"type": "check",
+				"disabled": true
+			},
+			{
+				"id": "repeatApiError",
+				"name": "SettingsRepeatAPIError",
+				"type": "check"
+			},
+			{
+				"id": "detailedApiError",
+				"name": "SettingsDetailedAPIError",
 				"type": "check"
 			}
 		]
@@ -146,6 +197,12 @@
 				"options" : {}
 			},
 			{
+				"id" : "info_pvp_info",
+				"name" : "SettingsPvPInfoActivity",
+				"type" : "check",
+				"options" : {}
+			},
+			{
 				"id" : "info_eng_stype",
 				"name" : "SettingsEnglishShipType",
 				"type" : "check",
@@ -203,8 +260,7 @@
 					"choices" : [
 						[ 1, "SettingsAFPNoBonus" ],
 						[ 2, "SettingsAFPVeteran" ],
-						[ 3, "SettingsAFPRange" ],
-						[ 4, "SettingsIntercept" ]
+						[ 3, "SettingsAFPRange" ]
 					]
 				}
 			},
@@ -219,6 +275,31 @@
 				"name" : "SettingsAFPBounds",
 				"type" : "json",
 				"options" : {}
+			},
+			{
+				"id" : "aaFormation",
+				"name" : "SettingsAAFormation",
+				"type" : "radio",
+				"options" : {
+					"choices" : [
+						[ 1, "SettingsAAFLineAheadEtc" ],
+						[ 2, "SettingsAAFDoubleLine" ],
+						[ 3, "SettingsAAFDiamond" ],
+						[ 11, "SettingsAAFCombAntiSub" ],
+						[ 13, "SettingsAAFCombDiamond" ]
+					]
+				}
+			},
+			{
+				"id" : "imaginaryEnemySlot",
+				"name" : "SettingsImaginaryEnemySlot",
+				"type" : "small_text",
+				"bound" : {
+					"min" :  0,
+					"max" : 255,
+					"type": "Integer"
+				},
+				"options" : { "label" : "" }
 			}
 		]
 	},
@@ -256,7 +337,7 @@
 				"bound" : {
 					"min" : 0,
 					"max" :  100,
-					"type": "Number"
+					"type": "Integer"
 				},
 				"options" : { "label" : "%" }
 			},
@@ -264,7 +345,10 @@
 				"id" : "ss_directory",
 				"name" : "SettingsSSDirectory",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsSSDirDesc" }
+				"options" : {
+					"placeholder" : "SettingsSSDirDesc",
+					"tooltip" : "SettingsSSDirDesc"
+				}
 			},
 			{
 				"id" : "ss_dppx",
@@ -283,7 +367,7 @@
 	},
 	{
 		"section": "SettingsAlerts",
-		"help" : "https://github.com/dragonjet/KC3Kai/wiki/Settings%3A-Alerts",
+		"help" : "https://github.com/KC3Kai/KC3Kai/wiki/Settings%3A-Alerts",
 		"contents" : [
 			{
 				"id" : "alert_diff",
@@ -292,7 +376,7 @@
 				"bound" : {
 					"min" : -300,
 					"max" :  300,
-					"type": "Number"
+					"type": "Integer"
 				},
 				"options" : { "label" : "SettingsSeconds" }
 			},
@@ -309,7 +393,7 @@
 				"bound" : {
 					"min" :  1,
 					"max" : 49,
-					"type": "Number"
+					"type": "Integer"
 				},
 				"options" : { "label" : "" }
 			},
@@ -321,7 +405,7 @@
 					"min" : 0,
 					"length_min" : 1,
 					"length_max" : 1,
-					"type": "Number"
+					"type": "Integer"
 				},
 				"options" : { "label" : "SettingsSupplyBarLabel" }
 			},
@@ -378,16 +462,40 @@
 						[ 2, "SettingsShowCounter"]
 					]
 				}
+			},
+			{
+				"id" : "alert_idle_start",
+				"name" : "SettingsIdleWarnStartAt",
+				"type" : "small_text",
+				"bound" : {
+					"min" :  0,
+					"type": "Number"
+				},
+				"options" : {
+					"tooltip" : "SettingsIdleWarnDesc"
+				}
 			}
 		]
 	},
 	{
 		"section": "SettingsTaihaAlert",
-		"help" : "https://github.com/dragonjet/KC3Kai/wiki",
+		"help" : "https://github.com/KC3Kai/KC3Kai/wiki",
 		"contents" : [
 			{
 				"id" : "alert_taiha",
 				"name" : "Enabled",
+				"type" : "check",
+				"options" : {}
+			},
+			{
+				"id" : "alert_taiha_homeport",
+				"name" : "SettingsDisableHomePort",
+				"type" : "check",
+				"options" : {}
+			},
+			{
+				"id" : "alert_taiha_damecon",
+				"name" : "SettingsDisableHasDamecon",
 				"type" : "check",
 				"options" : {}
 			},
@@ -425,11 +533,17 @@
 	},
 	{
 		"section": "SettingsAPIGameScreen",
-		"help" : "https://github.com/dragonjet/KC3Kai/wiki/Settings%3A-Screen",
+		"help" : "https://github.com/KC3Kai/KC3Kai/wiki/Settings%3A-Screen",
 		"contents" : [
 			{
 				"id" : "api_translation",
 				"name" : "SettingsQuestOverlay",
+				"type" : "check",
+				"options" : {}
+			},
+			{
+				"id" : "google_translate",
+				"name" : "SettingsGoogleTranslate",
 				"type" : "check",
 				"options" : {}
 			},
@@ -472,7 +586,10 @@
 				"id" : "api_bg_color",
 				"name" : "SettingsBGColor",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGColorDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGColorDesc",
+					"tooltip" : "SettingsBGColorDesc"
+				}
 			},
 			{
 				"id" : "api_bg_image",
@@ -484,13 +601,19 @@
 				"id" : "api_bg_size",
 				"name" : "SettingsBGSize",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGSizeDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGSizeDesc",
+					"tooltip" : "SettingsBGSizeDesc"
+				}
 			},
 			{
 				"id" : "api_bg_position",
 				"name" : "SettingsBGPosition",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGPositionDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGPositionDesc",
+					"tooltip" : "SettingsBGPositionDesc"
+				}
 			},
 			{
 				"id" : "api_gameScale",
@@ -514,7 +637,8 @@
 				"name" : "SettingsSubtitleFont",
 				"type" : "long_text",
 				"options" : {
-					"placeholder" : "SettingsSubtitleFontDesc"
+					"placeholder" : "SettingsSubtitleFontDesc",
+					"tooltip" : "SettingsSubtitleFontDesc"
 				}
 			},
 			{
@@ -522,9 +646,9 @@
 				"name" : "SettingsSubtitleSize",
 				"type" : "small_text",
 				"bound" : {
-					"min" :  10,
+					"min" : 10,
 					"max" : 50,
-					"type": "Number"
+					"type": "Integer"
 				},
 				"options" : {
 					"label" : "px"
@@ -533,6 +657,33 @@
 			{
 				"id" : "subtitle_bold",
 				"name" : "SettingsSubtitleBold",
+				"type" : "check",
+				"options" : {}
+			},
+			{
+				"id" : "subtitle_display",
+				"name" : "SettingsSubtitleDisplay",
+				"type" : "dropdown",
+				"options" : {
+					"choices" : [
+						[ "bottom", "SubtitleDisplayBottom" ],
+						[ "below", "SubtitleDisplayBelow" ],
+						[ "stick", "SubtitleDisplayStick" ],
+						[ "evade", "SubtitleDisplayEvade" ],
+						[ "ghost", "SubtitleDisplayGhost" ],
+						[ "free", "SubtitleDisplayFree", "disabled" ]
+					]
+				}
+			},
+			{
+				"id" : "subtitle_speaker",
+				"name" : "SettingsSubtitleSpeaker",
+				"type" : "check",
+				"options" : {}
+			},
+			{
+				"id" : "map_markers",
+				"name" : "SettingsMapNodeMarkers",
 				"type" : "check",
 				"options" : {}
 			}
@@ -589,7 +740,10 @@
 				"name" : "SettingsBGColor",
 				"type" : "long_text",
 				"hide" : 1,
-				"options" : { "placeholder" : "SettingsBGColorDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGColorDesc",
+					"tooltip" : "SettingsBGColorDesc"
+				}
 			},
 			{
 				"id" : "dmm_bg_image",
@@ -603,14 +757,20 @@
 				"name" : "SettingsBGSize",
 				"type" : "long_text",
 				"hide" : 1,
-				"options" : { "placeholder" : "SettingsBGSizeDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGSizeDesc",
+					"tooltip" : "SettingsBGSizeDesc"
+				}
 			},
 			{
 				"id" : "dmm_bg_position",
 				"name" : "SettingsBGPosition",
 				"type" : "long_text",
 				"hide" : 1,
-				"options" : { "placeholder" : "SettingsBGPositionDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGPositionDesc",
+					"tooltip" : "SettingsBGPositionDesc"
+				}
 			}
 		]
 	},
@@ -662,7 +822,7 @@
 	},
 	{
 		"section": "Panel",
-		"help" : "https://github.com/dragonjet/KC3Kai/wiki/Settings%3A-Panel",
+		"help" : "https://github.com/KC3Kai/KC3Kai/wiki/Settings%3A-Panel",
 		"contents" : [
 			{
 				"id" : "pan_theme",
@@ -679,7 +839,10 @@
 				"id" : "pan_bg_color",
 				"name" : "SettingsBGColor",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGColorDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGColorDesc",
+					"tooltip" : "SettingsBGColorDesc"
+				}
 			},
 			{
 				"id" : "pan_bg_image",
@@ -691,13 +854,19 @@
 				"id" : "pan_bg_size",
 				"name" : "SettingsBGSize",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGSizeDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGSizeDesc",
+					"tooltip" : "SettingsBGSizeDesc"
+				}
 			},
 			{
 				"id" : "pan_bg_position",
 				"name" : "SettingsBGPosition",
 				"type" : "long_text",
-				"options" : { "placeholder" : "SettingsBGPositionDesc" }
+				"options" : {
+					"placeholder" : "SettingsBGPositionDesc",
+					"tooltip" : "SettingsBGPositionDesc"
+				}
 			},
 			{
 				"id" : "pan_opacity",
@@ -710,6 +879,32 @@
 					"type": "Number"
 				},
 				"options" : { "label" : "%" }
+			},
+			{
+				"id" : "pan_box_bcolor",
+				"name" : "SettingsPanelBoxBackColor",
+				"type" : "long_text",
+				"options" : {
+					"placeholder" : "SettingsBGColorDesc",
+					"tooltip" : "SettingsBGColorDesc"
+				}
+			}
+		]
+	},
+	{
+		"section":"SettingsStrategyRoom",
+		"help":"",
+		"contents":[
+			{
+				"id" : "sr_theme",
+				"name" : "SettingsStrategyTheme",
+				"type" : "radio",
+				"options" : {
+					"choices" : [
+						[ "legacy", "Traditional" ],
+						[ "dark", "Dark" ]
+					]
+				}
 			}
 		]
 	}

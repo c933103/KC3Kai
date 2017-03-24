@@ -1,4 +1,5 @@
 var imgurLimit = 0;
+var enableShelfTimer = false;
 
 function KCScreenshot(){
 	ConfigManager.load();
@@ -14,14 +15,31 @@ function KCScreenshot(){
 		?["jpeg", "jpg", "image/jpeg"]
 		:["png", "png", "image/png"];
 	this.quality = ConfigManager.ss_quality;
+	this.callback = function(){};
 }
 
+KCScreenshot.prototype.setCallback = function(callback){
+	this.callback = callback;
+	return this;
+};
+
 KCScreenshot.prototype.start = function(playerName, element){
-	var self = this;
 	this.playerName = playerName;
 	this.gamebox = element;
 	this.generateScreenshotFilename();
-	
+	this.prepare();
+	this.capture();
+};
+
+KCScreenshot.prototype.remoteStart = function(tabId, offset){
+	this.tabId = tabId;
+	this.offset = offset;
+	this.generateScreenshotFilename(false);
+	this.prepare();
+	this.remoteCapture();
+};
+
+KCScreenshot.prototype.prepare = function(){
 	// Initialize HTML5 Canvas
 	this.canvas = document.createElement("canvas");
 	this.canvas.width = 800 * this.scale;
@@ -30,8 +48,6 @@ KCScreenshot.prototype.start = function(playerName, element){
 	
 	// Initialize Image Tag
 	this.domImg = new Image();
-	
-	this.capture();
 };
 
 function chromeCapture(captureFormat, imageQuality, response){
@@ -42,20 +58,26 @@ function chromeCapture(captureFormat, imageQuality, response){
 	}, response);
 }
 
-KCScreenshot.prototype.generateScreenshotFilename = function() {
-  var d = new Date();
-  curr_month = (d.getMonth()+1) + "";
-  if (curr_month.length == 1) { curr_month = "0" + curr_month; }
-  curr_date = d.getDate() + "";
-  if (curr_date.length == 1) { curr_date = "0" + curr_date; }
-  curr_hour = d.getHours() + "";
-  if (curr_hour.length == 1) { curr_hour = "0" + curr_hour; }
-  curr_min = d.getMinutes() + "";
-  if (curr_min.length == 1) { curr_min = "0" + curr_min; }
-  curr_second = d.getSeconds() + "";
-  if (curr_second.length == 1) { curr_second = "0" + curr_second; }
-
-  this.screenshotFilename = "["+this.playerName+"] "+d.getFullYear()+"-"+curr_month+"-"+curr_date+" "+curr_hour+"-"+curr_min+"-"+curr_second + " " + getRandomInt(10,99);
+KCScreenshot.prototype.generateScreenshotFilename = function(withPlayerName) {
+	withPlayerName = typeof withPlayerName == 'undefined' ? true : withPlayerName;
+	
+	var d = new Date();
+	curr_month = (d.getMonth()+1) + "";
+	if (curr_month.length == 1) { curr_month = "0" + curr_month; }
+	curr_date = d.getDate() + "";
+	if (curr_date.length == 1) { curr_date = "0" + curr_date; }
+	curr_hour = d.getHours() + "";
+	if (curr_hour.length == 1) { curr_hour = "0" + curr_hour; }
+	curr_min = d.getMinutes() + "";
+	if (curr_min.length == 1) { curr_min = "0" + curr_min; }
+	curr_second = d.getSeconds() + "";
+	if (curr_second.length == 1) { curr_second = "0" + curr_second; }
+	
+	if (withPlayerName) {
+		this.screenshotFilename = "["+this.playerName+"] "+d.getFullYear()+"-"+curr_month+"-"+curr_date+" "+curr_hour+"-"+curr_min+"-"+curr_second + " " + getRandomInt(10,99);
+	} else {
+		this.screenshotFilename = d.getFullYear()+"-"+curr_month+"-"+curr_date+" "+curr_hour+"-"+curr_min+"-"+curr_second + " " + getRandomInt(10,99);
+	}
 };
 
 function getRandomInt(min, max) {
@@ -64,27 +86,39 @@ function getRandomInt(min, max) {
 
 KCScreenshot.prototype.capture = function(){
 	var self = this;
-	var tempHideTaihaAlert = false;
 	
 	// If taiha alert appear on screenshot is off, hide taiha alert in the mean time
-	if(!ConfigManager.alert_taiha_ss && taihaStatus) {
-		interactions.taihaAlertStop({}, {}, {});
-		tempHideTaihaAlert = true;
+	if(!ConfigManager.alert_taiha_ss) {
+		interactions.suspendTaiha(function(){
+			self.startCapture();
+		});
+	} else {
+		this.startCapture();
 	}
-	
-	// Start capturing
-	chromeCapture(this.format[0], this.quality, function(base64img){
-		self.domImg.src = base64img;
-		self.domImg.onload = self.crop();
-		
-		// screenshot is done, return taiha alert
-		if (tempHideTaihaAlert) {
-			interactions.taihaAlertStart({}, {}, {});
-		}
+};
+
+KCScreenshot.prototype.remoteCapture = function(){
+	var self = this;
+	chrome.tabs.get(this.tabId, function(tabInfo){
+		chrome.tabs.captureVisibleTab(tabInfo.windowId, {
+			format: self.format[0],
+			quality: self.quality || 100
+		}, function(base64img){
+			self.domImg.onload = self.crop(self.offset);
+			self.domImg.src = base64img;
+		});
 	});
 };
 
-KCScreenshot.prototype.crop = function(){
+KCScreenshot.prototype.startCapture = function(){
+	var self = this;
+	chromeCapture(this.format[0], this.quality, function(base64img){
+		self.domImg.src = base64img;
+		self.domImg.onload = self.crop(self.gamebox.offset());
+	});
+};
+
+KCScreenshot.prototype.crop = function(offset){
 	var self = this;
 	
 	// Get zoom factor
@@ -93,8 +127,8 @@ KCScreenshot.prototype.crop = function(){
 		var params = {
 			realWidth: 800 * zoomFactor * self.scale,
 			realHeight: 480 * zoomFactor * self.scale,
-			offTop: self.gamebox.offset().top * zoomFactor * self.scale,
-			offLeft: self.gamebox.offset().left * zoomFactor * self.scale,
+			offTop: offset.top * zoomFactor * self.scale,
+			offLeft: offset.left * zoomFactor * self.scale,
 		};
 		
 		// Actual Cropping
@@ -126,18 +160,27 @@ KCScreenshot.prototype.output = function(){
 	}
 };
 
+KCScreenshot.prototype.complete = function(){
+	(this.callback || function(){})();
+};
+
 KCScreenshot.prototype.saveDownload = function(){
+	if (enableShelfTimer) {
+		clearTimeout(enableShelfTimer);
+	}
+	var self = this;
 	chrome.downloads.setShelfEnabled(false);
 	chrome.downloads.download({
 		url: this.base64img,
 		filename: ConfigManager.ss_directory+'/'+this.screenshotFilename+"."+this.format[1],
 		conflictAction: "uniquify"
 	}, function(downloadId){
-		setTimeout(function(){
+		enableShelfTimer = setTimeout(function(){
 			chrome.downloads.setShelfEnabled(true);
-		}, 1000);
+			enableShelfTimer = false;
+			self.complete();
+		}, 300);
 	});
-	
 };
 
 KCScreenshot.prototype.saveImgur = function(){
@@ -167,11 +210,12 @@ KCScreenshot.prototype.saveImgur = function(){
 						Accept: 'application/json'
 					},
 					data: {
-						image: self.base64img.substring(23),
+						image: self.base64img.split(',')[1],
 						type: 'base64'
 					},
 					success: function(response){
 						KC3Database.Screenshot(response.data.link);
+						self.complete();
 					}
 				});
 			}else{
@@ -183,4 +227,5 @@ KCScreenshot.prototype.saveImgur = function(){
 
 KCScreenshot.prototype.saveTab = function(){
 	window.open(this.base64img, "_blank");
+	this.complete();
 };

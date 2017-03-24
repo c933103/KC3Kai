@@ -222,9 +222,9 @@ Uses Dexie.js third-party plugin on the assets directory
 				
 			// Process the queue
 			var self = this;
-			$.each(dbUpdates, function(index, dbCurr){
+			dbUpdates.forEach(function callback(dbCurr, index) {
 				var dbVer;
-				dbCurr = $.extend({ch:{},rm:[],up:dbNonFunc},dbCurr);
+				dbCurr = Object.assign({ch:{},rm:[],up:dbNonFunc},dbCurr);
 				
 				// Replaces the proposed database table with the new one
 				Object.keys(dbCurr.ch).forEach(function(k){
@@ -744,12 +744,27 @@ Uses Dexie.js third-party plugin on the assets directory
 				.count(callback);
 		},
 		
-		get_sortie_page :function( world, map, page, callback ){
-			
-		},
-		
-		request_export :function(callback){
-			callback("{}");
+		count_sortie_battle: function(callback, startSecs, endSecs, world, map){
+			var self = this;
+			var sortieCount = 0, battleCount = 0;
+			this.con.sortie
+				.where("hq").equals(this.index)
+				.and(function(s){
+					return (world ? s.world === world : s.world < 10)
+						&& (map ? s.mapnum === map : true)
+						&& (startSecs ? s.time >= startSecs : true)
+						&& (endSecs ? s.time < endSecs : true);
+				})
+				.toArray(function(arr){
+					var sortiesIds = arr.map(s => s.id);
+					sortieCount = sortiesIds.length;
+					self.con.battle
+						.where("sortie_id").anyOf(sortiesIds)
+						.count(function(bc){
+							battleCount = bc;
+							callback(sortieCount, battleCount);
+						});
+				});
 		},
 		
 		count_screenshots: function(callback){
@@ -795,6 +810,7 @@ Uses Dexie.js third-party plugin on the assets directory
 				rmditem   ItemMaster
 				remodel   ShipMaster
 				regen     ------
+				lbas      WorldID
 			*/
 			// hour filter
 			iFilters = (
@@ -813,7 +829,7 @@ Uses Dexie.js third-party plugin on the assets directory
 				})
 				.reverse()
 				.toArray()
-				.then (callbackSucc || $.nop())
+				.then (callbackSucc || function(){})
 				.catch(callbackFail || function(e){console.error(e.stack);});
 		},
 		

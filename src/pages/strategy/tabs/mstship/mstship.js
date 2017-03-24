@@ -41,6 +41,9 @@
 		// atLevelChange(newLevel) updates info on UI
 		// with current ship & specified new level
 		atLevelChange: null,
+		// Merged master ship data with abyssal stats and seasonal CGs
+		mergedMasterShips: {},
+		damagedBossFileSuffix: "_d",
 		
 		/* INIT
 		Prepares static data needed
@@ -49,13 +52,15 @@
 			KC3Meta.loadQuotes();
 			var MyServer = (new KC3Server()).setNum( PlayerManager.hq.server );
 			this.server_ip = MyServer.ip;
+			// Ship master data will not changed frequently
+			this.mergedMasterShips = KC3Master.all_ships(true, true);
 		},
 		
 		/* RELOAD
 		Prepares latest in game data
 		---------------------------------*/
 		reload :function(){
-			// None for ship library
+			ConfigManager.load();
 		},
 		
 		/* EXECUTE
@@ -89,11 +94,10 @@
 			};
 
 			// List all ships
-			var shipBox;
-			$.each(KC3Master.all_ships(), function(index, ShipData){
+			$.each(this.mergedMasterShips, function(index, ShipData){
 				if(!ShipData) { return true; }
 				
-				shipBox = $(".tab_mstship .factory .shipRecord").clone();
+				var shipBox = $(".tab_mstship .factory .shipRecord").clone();
 				shipBox.attr("data-id", ShipData.api_id);
 				shipBox.data("bs", ShipData.kc3_bship);
 				
@@ -156,16 +160,16 @@
 			// On-click remodels
 			$(".tab_mstship .shipInfo").on("click", ".remodel_name a", function(e){
 				var sid = $(this).data("sid");
+				self.scrollShipListTop(sid);
 				KC3StrategyTabs.gotoTab(null, sid);
-				//self.showShip( sid );
 				e.preventDefault();
 				return false;
 			});
 			// On-click other forms
 			$(".tab_mstship .shipInfo").on("click", ".more .other_forms a", function(e){
 				var sid = $(this).data("sid");
+				self.scrollShipListTop(sid);
 				KC3StrategyTabs.gotoTab(null, sid);
-				//self.showShip( sid );
 				e.preventDefault();
 				return false;
 			});
@@ -174,6 +178,7 @@
 			if(!ConfigManager.dismissed_hints.cg_notice){
 				$(".cg_notes").show();
 				$(".cg_notes").on("click", function(e){
+					ConfigManager.loadIfNecessary();
 					ConfigManager.dismissed_hints.cg_notice = true;
 					ConfigManager.save();
 					// To keep URL for copying, do not disappear
@@ -183,6 +188,17 @@
 					$(".cg_notes").attr("title", "Dismissed, will not be shown next time. But can always be found at Help Topics.");
 				});
 			}
+			
+			// Fold/unfold sections like a accordion widget
+			$(".tab_mstship .shipInfo .accordion .head").on("click", function(e){
+				$(this).next().slideToggle();
+				return false;
+			}).next().hide();
+			
+			// Show damaged CG of abyssal boss
+			$(".tab_mstship .shipInfo .boss").on("click", function(e){
+				self.showShip(self.currentShipId, true);
+			});
 			
 			// Link to quotes developer page
 			if(ConfigManager.devOnlyPages){
@@ -216,24 +232,30 @@
 			// Link to ship specified by URL hash
 			if(!!KC3StrategyTabs.pageParams[1]){
 				this.showShip(KC3StrategyTabs.pageParams[1]);
+				// Also expand unfolded section
+				if(KC3StrategyTabs.pageParams.indexOf("aaci") > 1){
+					$(".tab_mstship .shipInfo .aaci").parent().show();
+				}
+				if(KC3StrategyTabs.pageParams.indexOf("gunfit") > 1){
+					$(".tab_mstship .shipInfo .gunfit").parent().show();
+				}
 			}else{
 				this.showShip();
 			}
 			
 			// Scroll list top to selected ship
-			setTimeout(function(){
-				var listItem = $(".tab_mstship .shipRecords .shipRecord[data-id={0}]".format(self.currentShipId));
-				var scrollTop = listItem.length === 1 ? listItem.offset().top - $(".tab_mstship .shipRecords").offset().top : 0;
-				$(".tab_mstship .shipRecords").scrollTop(scrollTop);
-			}, 200);
+			setTimeout(function(){self.scrollShipListTop();}, 0);
 		},
 		
-		/* UPDATE
-		Partially update elements of the interface without clearing all contents first
-		Be careful! Do NOT only update new data, but also handle the old states (do cleanup)
+		/* UPDATE: optional
+		Partially update elements of the interface,
+			possibly without clearing all contents first.
+		Be careful! Do not only update new data,
+			but also handle the old states (do cleanup).
+		Return `false` if updating all needed,
+			EXECUTE will be invoked instead.
 		---------------------------------*/
 		update :function(pageParams){
-			// KC3StrategyTabs.pageParams has been keeping the old values for states tracking
 			if(!!pageParams && !!pageParams[1]){
 				this.showShip(pageParams[1]);
 			}else{
@@ -243,11 +265,23 @@
 			return true;
 		},
 		
-		showShip :function(ship_id){
+		scrollShipListTop :function(shipId){
+			var shipList = $(".tab_mstship .shipRecords");
+			var shipItem = $(".tab_mstship .shipRecords .shipRecord[data-id={0}]"
+				.format(shipId || this.currentShipId)
+			);
+			var scrollTop = shipItem.length === 1 ?
+				(shipItem.offset().top
+				 + shipList.scrollTop()
+				 - shipList.offset().top) : 0;
+			shipList.scrollTop(scrollTop);
+		},
+
+		showShip :function(ship_id, tryDamagedGraph = false){
 			ship_id = Number(ship_id||"405");
 			var
 				self = this,
-				shipData = KC3Master.ship(ship_id),
+				shipData = this.mergedMasterShips[ship_id],
 				saltState = function(){
 					return ConfigManager.info_salt && shipData.kc3_bship && ConfigManager.salt_list.indexOf(shipData.kc3_bship)>=0;
 				},
@@ -266,7 +300,9 @@
 			console.debug("shipData", shipData);
 			if(!shipData) { return; }
 			
-			$(".tab_mstship .shipInfo .name").text( "[{0}] {1} {2}".format(ship_id, KC3Meta.shipName(shipData.api_name), KC3Meta.shipName(shipData.api_yomi) ) );
+			$(".tab_mstship .shipInfo .name").text( "[{0}] {1} {2}"
+				.format(ship_id, KC3Meta.shipName(shipData.api_name),
+					KC3Meta.shipReadingName(shipData.api_yomi).replace("-", "") ) );
 			$(".tab_mstship .shipInfo .type").text( "{0}".format(KC3Meta.stype(shipData.api_stype)) );
 			
 			// CG VIEWER
@@ -277,10 +313,11 @@
 			this.currentGraph = shipFile;
 			this.currentCardVersion = shipVersions[0];
 			
-			var shipSrc = "../../../../assets/swf/card.swf?sip="+this.server_ip
-					+"&shipFile="+shipFile
-					+"&abyss="+(ship_id>500?1:0)
-					+(!this.currentCardVersion?"":"&ver="+this.currentCardVersion);
+			var shipSrc = "../../../../assets/swf/card.swf?sip=" + this.server_ip
+					+ ("&shipFile=" + shipFile + (tryDamagedGraph ? this.damagedBossFileSuffix : ""))
+					+ ("&abyss=" + (ship_id > 500 && ship_id <= 800 ? 1 : 0))
+					+ (ship_id > 800 ? "&forceFrame=6" : "")
+					+ (!this.currentCardVersion ? "" : "&ver=" + this.currentCardVersion);
 			
 			$(".tab_mstship .shipInfo .cgswf embed").remove();
 			$("<embed/>")
@@ -297,10 +334,13 @@
 			if(ship_id<=500){
 				// Ship-only, non abyssal
 				$(".tab_mstship .shipInfo .stats").empty();
+				$(".tab_mstship .shipInfo .stats").css("width", "");
 				$(".tab_mstship .shipInfo .intro").html( shipData.api_getmes );
-				$(".tab_mstship .shipInfo .cgswf").css("width", "218px")
+				$(".tab_mstship .shipInfo .cgswf")
+					.css("width", "218px")
 					.css("height", "300px");
-				$(".tab_mstship .shipInfo .cgswf embed").css("width", "218px")
+				$(".tab_mstship .shipInfo .cgswf embed")
+					.css("width", "218px")
 					.css("height", "300px");
 				
 				// STATS
@@ -333,6 +373,10 @@
 						$(".ship_stat_text", statBox).show();
 						$(".ship_stat_value", statBox).hide();
 						
+					}else if(stat[0]=="hp"){
+						$(".ship_stat_min", statBox).text(shipData["api_"+stat[1]][0]);
+						// Show our max value for married ship, as api_taik[1] is unreasonable
+						$(".ship_stat_max span", statBox).text(KC3Ship.getMaxHp(ship_id));
 					}else if(stat[1].startsWith("db_")){
 						var realName = stat[1].slice(3);
 						$(".ship_stat_name", statBox).text(realName);
@@ -362,7 +406,7 @@
 
 					// in case when the data isn't available,
 					// slots should still be getting cleaned up
-					$(".slotitem", this).empty();
+					$(".slotitem", this).empty().removeAttr("title");
 					$(".sloticon img", this).attr("src", "");
 					$(".sloticon img", this).hide();
 
@@ -412,6 +456,7 @@
 
 					$.each(otherFormIds, function(i,x) {
 						$("<a/>")
+							.addClass("hover")
 							.text( KC3Meta.shipName(KC3Master.ship(x).api_name) )
 							.data("sid",x)
 							.appendTo( ".tab_mstship .shipInfo .more .other_forms .other_forms_list" );
@@ -480,11 +525,92 @@
 					$("<div/>").addClass("clear").appendTo(".tab_mstship .shipInfo .hourlies");
 				}
 				
+				// AACI Types
+				$(".aaciList").empty();
+				var aaciList = AntiAir.sortedPossibleAaciList( AntiAir.shipAllPossibleAACIs(shipData) );
+				if (aaciList.length > 0) {
+					var aaciBox, equipIcon, i;
+					$.each(aaciList, function(idx, aaciObj){
+						aaciBox = $(".tab_mstship .factory .aaciPattern").clone();
+						$(".apiId", aaciBox).text("[{0}]".format(aaciObj.id));
+						if(aaciObj.icons[0] > 0) {
+							$(".shipIcon img", aaciBox)
+								.attr("src", KC3Meta.shipIcon(aaciObj.icons[0]) )
+								.attr("title", KC3Meta.aacitype(aaciObj.id)[0] || "");
+						} else {
+							$(".shipIcon img", aaciBox).hide();
+						}
+						if(aaciObj.icons.length > 1) {
+							for(i = 1; i < aaciObj.icons.length; i++) {
+								equipIcon = String(aaciObj.icons[i]).split(/[+-]/);
+								$("<img/>")
+									.attr("src", "../../../../assets/img/items/"+equipIcon[0]+".png")
+									.attr("title", KC3Meta.aacitype(aaciObj.id)[i] || "")
+									.appendTo($(".equipIcons", aaciBox));
+								if(equipIcon.length>1) {
+									$('<img/>')
+										.attr("src", "../../../../assets/img/items/"+equipIcon[1]+".png")
+										.addClass(aaciObj.icons[i].indexOf("-")>-1 ? "minusIcon" : "plusIcon")
+										.appendTo($(".equipIcons", aaciBox));
+								}
+							}
+						}
+						$(".fixed", aaciBox).text("+{0}".format(aaciObj.fixed));
+						$(".modifier", aaciBox).text("x{0}".format(aaciObj.modifier));
+						aaciBox.toggleClass("odd", (idx+1) % 2 !== 0);
+						aaciBox.toggleClass("even", (idx+1) % 2 === 0);
+						aaciBox.appendTo(".aaciList");
+					});
+					$(".aaci").show();
+					$(".aaci").parent().prev().show();
+				} else {
+					$(".aaci").hide();
+					$(".aaci").parent().prev().hide();
+				}
+				
+				// GUN FITS
+				$(".gunfitList").empty();
+				var gunfits = KC3Meta.gunfit(shipData.api_id);
+				if (gunfits) {
+					var gunfitBox, gearObj;
+					$.each(gunfits, function(itemId, fitValue){
+						
+						gunfitBox = $(".tab_mstship .factory .fitgear").clone();
+						gearObj = KC3Master.slotitem(itemId);
+						
+						$(".gearName", gunfitBox).text(KC3Meta.gearName(gearObj.api_name));
+						
+						if (fitValue === "") {
+							$(".gearFit", gunfitBox).text(KC3Meta.term("FitWeightUnknown"));
+							gunfitBox.addClass("fit_unknown");
+						} else {
+							$(".gearFit", gunfitBox).text(KC3Meta.term("FitWeight_"+fitValue));
+							fitValue = parseInt(fitValue, 10);
+							if (fitValue < 0) {
+								gunfitBox.addClass("fit_penalty");
+							} else if (fitValue > 0) {
+								gunfitBox.addClass("fit_bonus");
+							} else {
+								gunfitBox.addClass("fit_neutral");
+							}
+						}
+						
+						gunfitBox.appendTo(".gunfitList");
+					});
+					$(".gunfit").parent().prev().show();
+				} else {
+					$(".gunfit").parent().prev().hide();
+				}
+				
+				// BOXES
 				$(".tab_mstship .shipInfo .stats").show();
 				$(".tab_mstship .shipInfo .equipments").show();
 				$(".tab_mstship .shipInfo .intro").show();
 				$(".tab_mstship .shipInfo .more").show();
 				$(".tab_mstship .shipInfo .json").hide();
+				$(".tab_mstship .shipInfo .boss").hide();
+				$(".tab_mstship .shipInfo .encounter").hide();
+				$(".tab_mstship .shipInfo .accordion").show();
 				$(".tab_mstship .shipInfo .tokubest").show();
 				if(ConfigManager.info_salt)
 					$(".tab_mstship .shipInfo .tokubest .salty-zone").show();
@@ -494,23 +620,31 @@
 					$(".tab_mstship .shipInfo .tokubest .to-quotes").show();
 				else
 					$(".tab_mstship .shipInfo .tokubest .to-quotes").hide();
-			}else{
+			} else if (shipData.api_id <= 800) {
 				// abyssals, show larger CG viewer
 				$(".tab_mstship .shipInfo .stats").hide();
 				$(".tab_mstship .shipInfo .equipments").hide();
-				$(".tab_mstship .shipInfo .json").text(JSON.stringify(shipData))
-					.css("width", "100%").show();
+				$(".tab_mstship .shipInfo .json").hide().css("width", "100%")
+					.text(JSON.stringify(shipData));
 				$(".tab_mstship .shipInfo .subtitles").empty().hide();
-				$(".tab_mstship .shipInfo .cgswf").css("width", "100%")
+				$(".tab_mstship .shipInfo .cgswf")
+					.css("width", "100%")
 					.css("height", "400px");
-				$(".tab_mstship .shipInfo .cgswf embed").css("width", "468px")
+				$(".tab_mstship .shipInfo .cgswf embed")
+					.css("width", "468px")
 					.css("height", "400px");
+				$(".tab_mstship .shipInfo .boss").toggle("boss" === KC3Meta.abyssShipBorderClass(shipData));
 				
-				// show stats if encounter once
-				KC3Database.get_enemyInfo(ship_id, function(enemyInfo){
-					console.debug("enemyInfo", enemyInfo);
-					if(enemyInfo){
-						// ENEMY STATS
+				// ENEMY STATS
+				// show stats if encounter once, or show stats of internal db
+				KC3Database.get_enemyInfo(ship_id, function(enemyDbStats){
+					var abyssDb = KC3Master.abyssalShip(ship_id, false);
+					var abyssMaster = self.mergedMasterShips[ship_id];
+					console.debug("Enemy DB stats", enemyDbStats);
+					console.debug("Abyssal internal stats", abyssDb);
+					console.debug("Merged abyssal master", abyssMaster);
+					$(".tab_mstship .shipInfo .encounter").toggle(!!enemyDbStats);
+					if(enemyDbStats || abyssDb){
 						$(".tab_mstship .shipInfo .stats").empty();
 						$.each([
 							["hp", "taik"],
@@ -524,27 +658,46 @@
 							$("img", statBox).attr("src", "../../../../assets/img/stats/"+stat[0]+".png");
 							$(".ship_stat_name", statBox).text(stat[1]);
 							if(stat[0]=="sp"){
-								$(".ship_stat_text", statBox).text({"0":"Land","5":"Slow","10":"Fast"}[shipData.api_soku]);
+								var speedEnNameMap = {"0":"Land","5":"Slow","10":"Fast","15":"Fast+","20":"Fastest"};
+								$(".ship_stat_text", statBox).text(speedEnNameMap[shipData.api_soku]);
 								$(".ship_stat_text", statBox).show();
 								$(".ship_stat_value", statBox).hide();
 							} else {
-								$(".ship_stat_min", statBox).text(enemyInfo[stat[0]]);
+								$(".ship_stat_min", statBox).text(
+									// Priority to show stats recorded via encounter
+									enemyDbStats ? enemyDbStats[stat[0]] : abyssMaster["api_" + stat[1]]
+								);
 								$(".ship_stat_max", statBox).hide();
+								// Check diff for updating `abyssal_stats.json`
+								if(enemyDbStats && (!abyssDb ||
+									typeof abyssDb["api_" + stat[1]] === "undefined" ||
+									enemyDbStats[stat[0]] != abyssDb["api_" + stat[1]])){
+									// Different color to indicate stats attribute to be updated
+									$(".ship_stat_min", statBox).html(
+										$("<span style='color:orangered'></span>").text($(".ship_stat_min", statBox).text())
+									).attr("title",
+										"{0} => {1}".format(abyssDb["api_" + stat[1]], enemyDbStats[stat[0]])
+									);
+								}
 							}
-							
 							statBox.appendTo(".tab_mstship .shipInfo .stats");
 						});
 						
 						// ENEMY EQUIPMENT
-						$(".tab_mstship .shipInfo .equipments").css("width", "220px");
+						$(".tab_mstship .shipInfo .stats").css("width", "220px");
 						$(".tab_mstship .equipments .equipment").each(function(index){
 							$(this).show();
-							$(".capacity", this).text("?").hide();
-							
-							var equipId = enemyInfo["eq"+(index+1)];
+							if(abyssDb && abyssDb.api_maxeq && typeof abyssMaster.api_maxeq[index] !== "undefined"){
+								$(".capacity", this).text(abyssMaster.api_maxeq[index]).show();
+							} else {
+								$(".capacity", this).text(index >= abyssMaster.api_slot_num ? "-" : "?").show();
+							}
+							// Priority to show equipment recorded via encounter
+							var equipId = enemyDbStats ? enemyDbStats["eq"+(index+1)] : (abyssMaster.kc3_slots || [])[index];
 							if (equipId > 0) {
 								var equipment = KC3Master.slotitem( equipId );
-								$(".slotitem", this).text(KC3Meta.gearName( equipment.api_name ) );
+								$(".slotitem", this).text(KC3Meta.gearName( equipment.api_name ) )
+									.attr("title", "");
 								$(".sloticon img", this)
 									.attr("src","../../../../assets/img/items/"+equipment.api_type[3]+".png");
 								$(".sloticon img", this).attr("alt", equipId);
@@ -553,6 +706,16 @@
 								});
 								$(".sloticon img", this).show();
 								$(".sloticon", this).addClass("hover");
+								// Check diff for updating `abyssal_stats.json`
+								if(enemyDbStats && (!abyssDb || !abyssDb.kc3_slots ||
+									typeof abyssMaster.kc3_slots[index] === "undefined" ||
+									enemyDbStats["eq"+(index+1)] != abyssMaster.kc3_slots[index])){
+									$(".slotitem", this).html(
+										$("<span style='color:yellow'></span>").text($(".slotitem", this).text())
+									).attr("title",
+										"{0} => {1}".format((abyssMaster.kc3_slots||[])[index], enemyDbStats["eq"+(index+1)])
+									);
+								}
 							} else {
 								$(".slotitem", this).empty();
 								$(".sloticon img", this).hide();
@@ -563,7 +726,9 @@
 						
 						$(".tab_mstship .shipInfo .stats").show();
 						$(".tab_mstship .shipInfo .equipments").show();
-						$(".tab_mstship .shipInfo .json").hide();
+					} else {
+						$(".tab_mstship .shipInfo .json").show();
+						$(".tab_mstship .shipInfo .boss").hide();
 					}
 				});
 				
@@ -571,9 +736,25 @@
 				$(".tab_mstship .shipInfo .hourlies").hide();
 				$(".tab_mstship .shipInfo .intro").hide();
 				$(".tab_mstship .shipInfo .more").hide();
+				$(".tab_mstship .shipInfo .accordion").hide();
+				$(".tab_mstship .shipInfo .tokubest").hide();
+			} else {
+				$(".tab_mstship .shipInfo .stats").hide();
+				$(".tab_mstship .shipInfo .equipments").hide();
+				$(".tab_mstship .shipInfo .json").hide();
+				$(".tab_mstship .shipInfo .subtitles").hide();
+				$(".tab_mstship .shipInfo .cgswf").css("width", "100%").css("height", "600px");
+				$(".tab_mstship .shipInfo .cgswf embed").css("width", "100%").css("height", "600px");
+				
+				$(".tab_mstship .shipInfo .voices").hide();
+				$(".tab_mstship .shipInfo .hourlies").hide();
+				$(".tab_mstship .shipInfo .intro").hide();
+				$(".tab_mstship .shipInfo .boss").hide();
+				$(".tab_mstship .shipInfo .encounter").hide();
+				$(".tab_mstship .shipInfo .more").hide();
+				$(".tab_mstship .shipInfo .accordion").hide();
 				$(".tab_mstship .shipInfo .tokubest").hide();
 			}
-			
 		}
 	};
 	
